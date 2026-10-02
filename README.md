@@ -13,6 +13,8 @@ upstreams. The query-safe access-log format never records query strings. The
 beta host remains a legacy Music Training route only and is not a Dashboard
 deployment target.
 
+Production revision `reverse-proxy-00038-9vm` implements this retired-route boundary.
+
 Run its routing and log-safety contract with Docker:
 
 ```sh
