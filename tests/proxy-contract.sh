@@ -38,7 +38,11 @@ assert_not_contains() {
     fi
 }
 
-sed 's#https://routine-dashboard-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
+sed \
+    -e 's#https://routine-dashboard-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
+    -e 's#https://avijitsinha-account-service-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
+    -e 's#https://music-training-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
+    -e 's#https://avijitsinha-com-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
     "$repository_dir/nginx.conf" > "$temporary_dir/nginx.conf"
 
 docker build --quiet --tag "$image_tag" "$repository_dir" >/dev/null
@@ -72,8 +76,25 @@ assert_contains "$redirect_response" 'HTTP/1.1 308 Permanent Redirect' \
 assert_contains "$redirect_response" 'Location: /routine/dashboard/' \
     'slashless dashboard path did not use a safe relative redirect'
 
+account_redirect_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    "$base_url/account")
+assert_contains "$account_redirect_response" 'HTTP/1.1 308 Permanent Redirect' \
+    'slashless account path did not return 308'
+assert_contains "$account_redirect_response" 'Location: /account/' \
+    'slashless account path did not use a safe relative redirect'
+
+music_redirect_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    "$base_url/music/training")
+assert_contains "$music_redirect_response" 'HTTP/1.1 308 Permanent Redirect' \
+    'slashless Music Training path did not return 308'
+assert_contains "$music_redirect_response" 'Location: /music/training/intervals/' \
+    'slashless Music Training path did not use its canonical route'
+
 proxied_response=$(curl --http1.1 --silent --include \
     --header 'Host: avijitsinha.com' \
+    --header 'Cookie: avijitsinha_session=dashboard_session' \
     "$base_url/routine/dashboard/api/me?fixture_query=retained_upstream")
 assert_contains "$proxied_response" 'HTTP/1.1 200 OK' \
     'dashboard request did not reach the fixture upstream'
@@ -83,6 +104,43 @@ assert_contains "$proxied_response" 'X-Observed-Host: avijitsinha.com' \
     'external host was not forwarded'
 assert_contains "$proxied_response" 'X-Observed-Forwarded-Proto: http' \
     'request scheme was not forwarded'
+assert_contains "$proxied_response" 'X-Observed-Cookie: avijitsinha_session=dashboard_session' \
+    'dashboard request did not retain the common session cookie'
+
+account_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    --header 'Cookie: avijitsinha_session=account_session' \
+    "$base_url/api/account/me")
+assert_contains "$account_response" 'HTTP/1.1 200 OK' \
+    'account API request did not reach the fixture upstream'
+assert_contains "$account_response" 'X-Observed-Uri: /api/account/me' \
+    'account API path was not preserved before proxying'
+assert_contains "$account_response" 'X-Observed-Cookie: avijitsinha_session=account_session' \
+    'account API request did not retain the common session cookie'
+
+account_ui_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    "$base_url/account/app.js")
+assert_contains "$account_ui_response" 'X-Observed-Uri: /account/app.js' \
+    'account UI path was not preserved before proxying'
+
+music_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    --header 'Cookie: avijitsinha_session=must_not_reach_music' \
+    "$base_url/music/training/intervals/")
+assert_contains "$music_response" 'HTTP/1.1 200 OK' \
+    'Music Training request did not reach the fixture upstream'
+assert_not_contains "$music_response" 'must_not_reach_music' \
+    'common session cookie reached the static Music Training upstream'
+
+homepage_response=$(curl --http1.1 --silent --include \
+    --header 'Host: avijitsinha.com' \
+    --header 'Cookie: avijitsinha_session=must_not_reach_homepage' \
+    "$base_url/")
+assert_contains "$homepage_response" 'HTTP/1.1 200 OK' \
+    'homepage request did not reach the fixture upstream'
+assert_not_contains "$homepage_response" 'must_not_reach_homepage' \
+    'common session cookie reached the static homepage upstream'
 
 for internal_path in \
     '/routine/dashboard/internal' \
@@ -97,6 +155,21 @@ for internal_path in \
         "internal path was not denied: $internal_path"
     assert_not_contains "$internal_response" 'X-Observed-Uri:' \
         "internal path reached the upstream: $internal_path"
+done
+
+for internal_account_path in \
+    '/internal/account' \
+    '/internal/account/' \
+    '/internal/account/sessions:authorize' \
+    '/internal//account/sessions:authorize' \
+    '/api/account/../../internal/account/sessions:authorize'; do
+    internal_account_response=$(curl --http1.1 --path-as-is --silent --include \
+        --header 'Host: avijitsinha.com' \
+        "$base_url$internal_account_path")
+    assert_contains "$internal_account_response" 'HTTP/1.1 404 Not Found' \
+        "internal account path was not denied: $internal_account_path"
+    assert_not_contains "$internal_account_response" 'X-Observed-Uri:' \
+        "internal account path reached the upstream: $internal_account_path"
 done
 
 curl --http1.1 --silent --output /dev/null \
