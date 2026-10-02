@@ -38,7 +38,7 @@ assert_not_contains() {
     fi
 }
 
-sed 's#https://routine-dashboard-beta-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
+sed 's#https://routine-dashboard-553636919043.us-west1.run.app/#http://127.0.0.1:8081/#' \
     "$repository_dir/nginx.conf" > "$temporary_dir/nginx.conf"
 
 docker build --quiet --tag "$image_tag" "$repository_dir" >/dev/null
@@ -55,7 +55,7 @@ base_url="http://$published_address"
 
 attempt=0
 until curl --fail --silent --output /dev/null \
-    --header 'Host: beta.avijitsinha.com' \
+    --header 'Host: avijitsinha.com' \
     "$base_url/routine/dashboard"; do
     attempt=$((attempt + 1))
     if [ "$attempt" -ge 30 ]; then
@@ -65,7 +65,7 @@ until curl --fail --silent --output /dev/null \
 done
 
 redirect_response=$(curl --http1.1 --silent --include \
-    --header 'Host: beta.avijitsinha.com' \
+    --header 'Host: avijitsinha.com' \
     "$base_url/routine/dashboard")
 assert_contains "$redirect_response" 'HTTP/1.1 308 Permanent Redirect' \
     'slashless dashboard path did not return 308'
@@ -73,13 +73,13 @@ assert_contains "$redirect_response" 'Location: /routine/dashboard/' \
     'slashless dashboard path did not use a safe relative redirect'
 
 proxied_response=$(curl --http1.1 --silent --include \
-    --header 'Host: beta.avijitsinha.com' \
+    --header 'Host: avijitsinha.com' \
     "$base_url/routine/dashboard/api/me?fixture_query=retained_upstream")
 assert_contains "$proxied_response" 'HTTP/1.1 200 OK' \
     'dashboard request did not reach the fixture upstream'
 assert_contains "$proxied_response" 'X-Observed-Uri: /api/me?fixture_query=retained_upstream' \
     'dashboard prefix was not stripped before proxying'
-assert_contains "$proxied_response" 'X-Observed-Host: beta.avijitsinha.com' \
+assert_contains "$proxied_response" 'X-Observed-Host: avijitsinha.com' \
     'external host was not forwarded'
 assert_contains "$proxied_response" 'X-Observed-Forwarded-Proto: http' \
     'request scheme was not forwarded'
@@ -91,7 +91,7 @@ for internal_path in \
     '/routine/dashboard//internal/sync/calendar' \
     '/routine/dashboard/api/../internal/sync/calendar'; do
     internal_response=$(curl --http1.1 --path-as-is --silent --include \
-        --header 'Host: beta.avijitsinha.com' \
+        --header 'Host: avijitsinha.com' \
         "$base_url$internal_path")
     assert_contains "$internal_response" 'HTTP/1.1 404 Not Found' \
         "internal path was not denied: $internal_path"
@@ -100,7 +100,7 @@ for internal_path in \
 done
 
 curl --http1.1 --silent --output /dev/null \
-    --header 'Host: beta.avijitsinha.com' \
+    --header 'Host: avijitsinha.com' \
     "$base_url/routine/dashboard/api/integrations/google/calendar/callback?code=oauth_code_must_not_log&state=oauth_state_must_not_log"
 
 curl --http1.1 --silent --output /dev/null \
