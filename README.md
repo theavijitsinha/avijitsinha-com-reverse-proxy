@@ -5,7 +5,8 @@ legacy `beta.avijitsinha.com` host. It routes each application path to its own
 Cloud Run service and serves the Firebase Authentication helper files under
 `/__/auth/`.
 
-The production common Account and Routine Dashboard routes are prepared at
+Production revision `reverse-proxy-00037-blj` serves the common Account and
+Routine Dashboard routes at
 `https://avijitsinha.com/account/` and
 `https://avijitsinha.com/routine/dashboard/`. Account UI and API paths are
 preserved, while the Dashboard's public prefix is stripped before proxying.
@@ -21,6 +22,6 @@ Run its routing and log-safety contract with Docker:
 ./tests/proxy-contract.sh
 ```
 
-The test builds the repository image, replaces only the absent production upstream
-with a local fixture inside the temporary container, sends requests through
-nginx, and removes its temporary image and container when finished.
+The test builds the repository image, replaces the production upstreams with a
+local fixture inside the temporary container, sends requests through nginx,
+and removes its temporary image and container when finished.
